@@ -57,14 +57,10 @@ pi -e git:github.com/SuperJeason/pi-code-blocks
 ### Layout
 
 - 弹层贴在输入框上方（`bottom-center`）
-- **分层配色**（跟随当前主题，dark 示意）：
-  - **chrome** 标题/底栏：`userMessageBg` 略抬升
-  - **body** 列表/搜索：`toolPendingBg` 毛玻璃主体
-  - **selected** 选中行：`selectedBg` 淡紫强调
-  - **preview** 代码区：同 body，边框更弱；聚焦时 `previewFocus`
-  - 外边框 `border`，内部分隔 `borderMuted`，聚焦 `borderAccent`
+- **整体透明**：不铺深色底，会话背景透出；仅线框 + 文字
+- 选中行 / 预览聚焦时才用 `selectedBg` 轻微高亮
+- 外框 `border`，内部分隔 `borderMuted`（`├─┤`），聚焦 `borderAccent`
 - 高度限制在终端约 75%，底边框不裁切
-- 终端无真 alpha / 高斯模糊，以上为半透明分层模拟
 
 
 ## Requirements

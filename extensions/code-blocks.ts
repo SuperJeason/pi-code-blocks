@@ -9,7 +9,7 @@ import {
 } from "@earendil-works/pi-tui";
 
 /**
- * /code - layered frosted panel (chrome/body/selected/preview) · bottom-anchored.
+ * /code - transparent outline panel · selected/focus highlight only · bottom-anchored.
  * Trigger: /code
  * Keys: up/down move/scroll · right/f preview · left list · tab last/all · enter · esc
  */
@@ -90,30 +90,30 @@ function keyHint(theme: ThemeLike, key: string, label: string): string {
   return theme.fg("accent", theme.bold(key)) + theme.fg("muted", " " + label);
 }
 
-// ── Panel palette (theme-key surfaces; terminals have no real alpha/blur) ──
-// dark:  page #18181e · body #282832 · chrome #343541 · selected #3a3a4a
-// light: page white   · body #e8e8f0 · chrome #e8e8e8 · selected #d0d0e0
-// Hierarchy: chrome (title/footer) elevated · body (list/search) glass ·
-//            preview slightly recessed · selected accent-tinted.
+// ── Transparent panel (outline only) ──────────────────────────────────────
+// Default surfaces paint no fill so the session background shows through.
+// Only selected / focus rows use a light selectedBg highlight.
+// Terminals have no real alpha; "transparent" = skip theme.bg entirely.
 type Surface = "chrome" | "body" | "selected" | "preview" | "previewFocus";
 type BorderTone = "frame" | "muted" | "accent" | "focus";
 
-const SURFACE_BG: Record<Surface, string> = {
-  chrome: "userMessageBg", // elevated title / footer bar
-  body: "toolPendingBg", // main frosted glass
-  selected: "selectedBg", // active list row
-  preview: "toolPendingBg", // code pane (same glass, quieter borders)
-  previewFocus: "selectedBg", // preview chrome when focused
+/** null = fully transparent (no bg). Only interactive emphasis gets a fill. */
+const SURFACE_BG: Record<Surface, string | null> = {
+  chrome: null,
+  body: null,
+  selected: "selectedBg",
+  preview: null,
+  previewFocus: "selectedBg",
 };
 
 const BORDER_FG: Record<BorderTone, string> = {
-  frame: "border", // outer frame — theme blue, calmer than cyan
-  muted: "borderMuted", // internal dividers
-  accent: "accent", // soft teal emphasis
-  focus: "borderAccent", // cyan — active pane
+  frame: "border",
+  muted: "borderMuted",
+  accent: "accent",
+  focus: "borderAccent",
 };
 
-function surfaceBg(s: Surface = "body"): string {
+function surfaceBg(s: Surface = "body"): string | null {
   return SURFACE_BG[s];
 }
 
@@ -121,18 +121,32 @@ function borderFg(t: BorderTone = "frame"): string {
   return BORDER_FG[t];
 }
 
-/** Full-width paint so the TUI compositor never pads with unstyled spaces. */
-function paintLine(theme: ThemeLike, content: string, width: number, bg: string): string {
-  return theme.bg(bg, padVisible(content, width));
+/**
+ * Pad to full width. Only wrap with theme.bg when a fill is requested —
+ * otherwise the line stays transparent and the session shows through.
+ */
+function paintLine(
+  theme: ThemeLike,
+  content: string,
+  width: number,
+  bg: string | null | undefined,
+): string {
+  const line = padVisible(content, width);
+  return bg ? theme.bg(bg, line) : line;
 }
 
 function boxRow(
   theme: ThemeLike,
   inner: string,
   width: number,
-  opts?: { surface?: Surface; border?: BorderTone; bg?: string; borderColor?: string },
+  opts?: {
+    surface?: Surface;
+    border?: BorderTone;
+    bg?: string | null;
+    borderColor?: string;
+  },
 ): string {
-  const bg = opts?.bg ?? surfaceBg(opts?.surface ?? "body");
+  const bg = opts?.bg !== undefined ? opts.bg : surfaceBg(opts?.surface ?? "body");
   const borderColor = opts?.borderColor ?? borderFg(opts?.border ?? "frame");
   const innerW = Math.max(0, width - 2);
   const left = theme.fg(borderColor, "│");
@@ -176,7 +190,7 @@ function boxBottom(
   return paintLine(theme, line, width, bg);
 }
 
-/** Horizontal rule with T-junctions; surface/border choose visual weight. */
+/** Horizontal rule with T-junctions; no fill by default. */
 function boxRule(
   theme: ThemeLike,
   width: number,
