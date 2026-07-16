@@ -1,7 +1,7 @@
 {
   "name": "pi-code-blocks",
   "version": "1.1.1",
-  "description": "Pick fenced code blocks from assistant replies and copy to clipboard (fixed-height overlay, last/all scope, scrollable preview).",
+  "description": "Pi extension: pick fenced code blocks from assistant replies into a transparent TUI overlay and copy to clipboard.",
   "keywords": [
     "pi-package",
     "pi-extension",
