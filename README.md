@@ -57,7 +57,8 @@ pi -e git:github.com/SuperJeason/pi-code-blocks
 ### Layout
 
 - 弹层贴在输入框上方（`bottom-center`），不垂直居中
-- 面板背景透明，与 pi 原生选择器一致；仅选中行使用 `selectedBg`
+- 面板使用半透明感的 frosted 底（主题 `toolPendingBg`）；选中行用 `selectedBg`
+- 终端无法真·高斯模糊，此为最接近的主题色毛玻璃效果
 - 宽度约 68%，列表/预览行数随终端高度自适应
 
 ## Requirements

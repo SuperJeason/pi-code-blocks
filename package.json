@@ -1,6 +1,6 @@
 {
   "name": "pi-code-blocks",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Pick fenced code blocks from assistant replies and copy to clipboard (fixed-height overlay, last/all scope, scrollable preview).",
   "keywords": [
     "pi-package",

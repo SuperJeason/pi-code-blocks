@@ -9,7 +9,7 @@ import {
 } from "@earendil-works/pi-tui";
 
 /**
- * /code - bottom-anchored overlay, transparent panel (selectedBg on focus).
+ * /code - bottom-anchored overlay with frosted (toolPendingBg) panel.
  * Trigger: /code
  * Keys: up/down move/scroll · right/f preview · left list · tab last/all · enter · esc
  */
@@ -93,36 +93,39 @@ function keyHint(theme: ThemeLike, key: string, label: string): string {
   return theme.fg("accent", theme.bold(key)) + theme.fg("muted", " " + label);
 }
 
-// Transparent panel by default (no solid fill) so the overlay matches pi's
-// native selectors. Only focused/selected rows paint selectedBg.
+// Frosted panel surface: toolPendingBg sits between pageBg and selectedBg,
+// approximating a soft "glass" panel in the terminal (true blur is unavailable).
+const PANEL_BG = "toolPendingBg";
+
 function boxRow(
   theme: ThemeLike,
   inner: string,
   width: number,
   opts?: { bg?: string; borderColor?: string },
 ): string {
+  const bg = opts?.bg ?? PANEL_BG;
   const borderColor = opts?.borderColor ?? "borderAccent";
   const innerW = Math.max(0, width - 2);
   const left = theme.fg(borderColor, "│");
   const right = theme.fg(borderColor, "│");
-  const content = left + padVisible(inner, innerW) + right;
-  return opts?.bg ? theme.bg(opts.bg, content) : content;
+  return theme.bg(bg, left + padVisible(inner, innerW) + right);
 }
 
 function boxTop(theme: ThemeLike, titleColored: string, titlePlain: string, width: number): string {
   const innerW = Math.max(0, width - 2);
   const titleW = visibleWidth(titlePlain);
   const dash = Math.max(0, innerW - titleW);
-  return (
+  const line =
     theme.fg("borderAccent", "╭") +
     titleColored +
-    theme.fg("borderAccent", "─".repeat(dash) + "╮")
-  );
+    theme.fg("borderAccent", "─".repeat(dash) + "╮");
+  return theme.bg(PANEL_BG, padVisible(line, width));
 }
 
 function boxBottom(theme: ThemeLike, width: number): string {
   const innerW = Math.max(0, width - 2);
-  return theme.fg("borderAccent", "╰" + "─".repeat(innerW) + "╯");
+  const line = theme.fg("borderAccent", "╰" + "─".repeat(innerW) + "╯");
+  return theme.bg(PANEL_BG, padVisible(line, width));
 }
 
 function boxRule(theme: ThemeLike, width: number): string {
