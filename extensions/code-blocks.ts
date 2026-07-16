@@ -9,7 +9,7 @@ import {
 } from "@earendil-works/pi-tui";
 
 /**
- * /code - bottom-anchored frosted panel; height-safe frame; T-junction rules.
+ * /code - layered frosted panel (chrome/body/selected/preview) · bottom-anchored.
  * Trigger: /code
  * Keys: up/down move/scroll · right/f preview · left list · tab last/all · enter · esc
  */
@@ -90,12 +90,39 @@ function keyHint(theme: ThemeLike, key: string, label: string): string {
   return theme.fg("accent", theme.bold(key)) + theme.fg("muted", " " + label);
 }
 
-// Soft frosted panel. Terminals cannot do real alpha/blur — customMessageBg sits
-// just above pageBg so the surface reads as light semi-opaque glass.
-const PANEL_BG = "customMessageBg";
+// ── Panel palette (theme-key surfaces; terminals have no real alpha/blur) ──
+// dark:  page #18181e · body #282832 · chrome #343541 · selected #3a3a4a
+// light: page white   · body #e8e8f0 · chrome #e8e8e8 · selected #d0d0e0
+// Hierarchy: chrome (title/footer) elevated · body (list/search) glass ·
+//            preview slightly recessed · selected accent-tinted.
+type Surface = "chrome" | "body" | "selected" | "preview" | "previewFocus";
+type BorderTone = "frame" | "muted" | "accent" | "focus";
+
+const SURFACE_BG: Record<Surface, string> = {
+  chrome: "userMessageBg", // elevated title / footer bar
+  body: "toolPendingBg", // main frosted glass
+  selected: "selectedBg", // active list row
+  preview: "toolPendingBg", // code pane (same glass, quieter borders)
+  previewFocus: "selectedBg", // preview chrome when focused
+};
+
+const BORDER_FG: Record<BorderTone, string> = {
+  frame: "border", // outer frame — theme blue, calmer than cyan
+  muted: "borderMuted", // internal dividers
+  accent: "accent", // soft teal emphasis
+  focus: "borderAccent", // cyan — active pane
+};
+
+function surfaceBg(s: Surface = "body"): string {
+  return SURFACE_BG[s];
+}
+
+function borderFg(t: BorderTone = "frame"): string {
+  return BORDER_FG[t];
+}
 
 /** Full-width paint so the TUI compositor never pads with unstyled spaces. */
-function paintLine(theme: ThemeLike, content: string, width: number, bg: string = PANEL_BG): string {
+function paintLine(theme: ThemeLike, content: string, width: number, bg: string): string {
   return theme.bg(bg, padVisible(content, width));
 }
 
@@ -103,19 +130,26 @@ function boxRow(
   theme: ThemeLike,
   inner: string,
   width: number,
-  opts?: { bg?: string; borderColor?: string },
+  opts?: { surface?: Surface; border?: BorderTone; bg?: string; borderColor?: string },
 ): string {
-  const bg = opts?.bg ?? PANEL_BG;
-  const borderColor = opts?.borderColor ?? "borderAccent";
+  const bg = opts?.bg ?? surfaceBg(opts?.surface ?? "body");
+  const borderColor = opts?.borderColor ?? borderFg(opts?.border ?? "frame");
   const innerW = Math.max(0, width - 2);
   const left = theme.fg(borderColor, "│");
   const right = theme.fg(borderColor, "│");
   return paintLine(theme, left + padVisible(inner, innerW) + right, width, bg);
 }
 
-function boxTop(theme: ThemeLike, titleColored: string, titlePlain: string, width: number): string {
+function boxTop(
+  theme: ThemeLike,
+  titleColored: string,
+  titlePlain: string,
+  width: number,
+  opts?: { surface?: Surface; border?: BorderTone },
+): string {
+  const bg = surfaceBg(opts?.surface ?? "chrome");
+  const borderColor = borderFg(opts?.border ?? "frame");
   const innerW = Math.max(0, width - 2);
-  // Keep title within the frame so ╭ / ╮ always meet the side borders.
   let title = titleColored;
   let titleW = visibleWidth(titlePlain);
   if (titleW > innerW) {
@@ -124,23 +158,35 @@ function boxTop(theme: ThemeLike, titleColored: string, titlePlain: string, widt
   }
   const dash = Math.max(0, innerW - titleW);
   const line =
-    theme.fg("borderAccent", "╭") +
+    theme.fg(borderColor, "╭") +
     title +
-    theme.fg("borderAccent", "─".repeat(dash) + "╮");
-  return paintLine(theme, line, width);
+    theme.fg(borderColor, "─".repeat(dash) + "╮");
+  return paintLine(theme, line, width, bg);
 }
 
-function boxBottom(theme: ThemeLike, width: number): string {
+function boxBottom(
+  theme: ThemeLike,
+  width: number,
+  opts?: { surface?: Surface; border?: BorderTone },
+): string {
+  const bg = surfaceBg(opts?.surface ?? "chrome");
+  const borderColor = borderFg(opts?.border ?? "frame");
   const innerW = Math.max(0, width - 2);
-  const line = theme.fg("borderAccent", "╰" + "─".repeat(innerW) + "╯");
-  return paintLine(theme, line, width);
+  const line = theme.fg(borderColor, "╰" + "─".repeat(innerW) + "╯");
+  return paintLine(theme, line, width, bg);
 }
 
-/** Horizontal rule with T-junctions into the vertical borders (├ ─ ┤). */
-function boxRule(theme: ThemeLike, width: number): string {
+/** Horizontal rule with T-junctions; surface/border choose visual weight. */
+function boxRule(
+  theme: ThemeLike,
+  width: number,
+  opts?: { surface?: Surface; border?: BorderTone },
+): string {
+  const bg = surfaceBg(opts?.surface ?? "body");
+  const borderColor = borderFg(opts?.border ?? "muted");
   const innerW = Math.max(0, width - 2);
-  const line = theme.fg("borderAccent", "├" + "─".repeat(innerW) + "┤");
-  return paintLine(theme, line, width);
+  const line = theme.fg(borderColor, "├" + "─".repeat(innerW) + "┤");
+  return paintLine(theme, line, width, bg);
 }
 
 interface CodeBlock {
@@ -274,7 +320,7 @@ export default function (pi: ExtensionAPI) {
                 th.fg(scope === "last" ? "warning" : "success", th.bold(scopeLabel)) +
                 th.fg("dim", " · ") +
                 th.fg("text", countLabel + " ");
-              out.push(boxTop(th, titleColored, titlePlain, W));
+              out.push(boxTop(th, titleColored, titlePlain, W, { surface: "chrome", border: "frame" }));
 
               const searchIcon = th.fg("accent", th.bold("⌕"));
               const placeholder = "type to filter…";
@@ -284,18 +330,33 @@ export default function (pi: ExtensionAPI) {
               const visibleSearch = search.length > 0 ? search : placeholder;
               const used = visibleWidth(" " + "⌕" + " " + visibleSearch + "▌");
               const pad = Math.max(0, innerW - used);
-              out.push(boxRow(th, " " + searchIcon + " " + searchBody + cursor + " ".repeat(pad), W));
-              out.push(boxRule(th, W));
+              out.push(
+                boxRow(th, " " + searchIcon + " " + searchBody + cursor + " ".repeat(pad), W, {
+                  surface: "body",
+                }),
+              );
+              out.push(boxRule(th, W, { surface: "body", border: "muted" }));
 
               // List pane (listRows, adaptive)
               if (filtered.length === 0) {
                 for (let r = 0; r < listRows; r++) {
                   if (r === Math.floor(listRows / 2) - 1) {
-                    out.push(boxRow(th, centerVisible(th.fg("warning", th.bold("no matches")), innerW), W));
+                    out.push(
+                      boxRow(th, centerVisible(th.fg("warning", th.bold("no matches")), innerW), W, {
+                        surface: "body",
+                      }),
+                    );
                   } else if (r === Math.floor(listRows / 2)) {
-                    out.push(boxRow(th, centerVisible(th.fg("muted", "backspace / ctrl+u to clear"), innerW), W));
+                    out.push(
+                      boxRow(
+                        th,
+                        centerVisible(th.fg("muted", "backspace / ctrl+u to clear"), innerW),
+                        W,
+                        { surface: "body" },
+                      ),
+                    );
                   } else {
-                    out.push(boxRow(th, "", W));
+                    out.push(boxRow(th, "", W, { surface: "body" }));
                   }
                 }
               } else {
@@ -304,7 +365,7 @@ export default function (pi: ExtensionAPI) {
                 for (let r = 0; r < listRows; r++) {
                   const idx = start + r;
                   if (idx >= filtered.length) {
-                    out.push(boxRow(th, "", W));
+                    out.push(boxRow(th, "", W, { surface: "body" }));
                     continue;
                   }
 
@@ -330,15 +391,22 @@ export default function (pi: ExtensionAPI) {
                     const chip = th.bold(th.fg(color, lang));
                     const preview = th.fg("text", previewCut);
                     const metaPart = th.fg("muted", meta);
-                    const row = " " + caret + indexPart + " " + chip + "  " + preview + " ".repeat(gap) + metaPart;
-                    out.push(boxRow(th, row, W, focus === "list" ? { bg: "selectedBg", borderColor: "accent" } : { borderColor: "borderMuted" }));
+                    const row =
+                      " " + caret + indexPart + " " + chip + "  " + preview + " ".repeat(gap) + metaPart;
+                    out.push(
+                      boxRow(th, row, W, {
+                        surface: focus === "list" ? "selected" : "body",
+                        border: focus === "list" ? "focus" : "muted",
+                      }),
+                    );
                   } else {
                     const indexPart = th.fg("muted", num);
                     const chip = th.fg(color, lang);
                     const preview = th.fg("text", previewCut);
                     const metaPart = th.fg("dim", meta);
-                    const row = "  " + indexPart + " " + chip + "  " + preview + " ".repeat(gap) + metaPart;
-                    out.push(boxRow(th, row, W));
+                    const row =
+                      "  " + indexPart + " " + chip + "  " + preview + " ".repeat(gap) + metaPart;
+                    out.push(boxRow(th, row, W, { surface: "body", border: "frame" }));
                   }
                 }
               }
@@ -355,8 +423,8 @@ export default function (pi: ExtensionAPI) {
                 const label = (parts.length ? parts.join("  ") + "  ·  " : "") + pos;
                 scrollHint = centerVisible(th.fg("muted", label), innerW);
               }
-              out.push(boxRow(th, scrollHint, W));
-              out.push(boxRule(th, W));
+              out.push(boxRow(th, scrollHint, W, { surface: "body", border: "muted" }));
+              out.push(boxRule(th, W, { surface: "body", border: "muted" }));
 
               // Preview pane (previewRows, adaptive; scrollable when focused)
               const sel = filtered[selectedIdx];
@@ -387,14 +455,20 @@ export default function (pi: ExtensionAPI) {
                   th.fg("accent", "#" + sel.num) +
                   scrollInfo;
                 out.push(
-                  boxRow(th, header, W, previewFocused ? { borderColor: "accent" } : undefined),
+                  boxRow(th, header, W, {
+                    surface: previewFocused ? "previewFocus" : "preview",
+                    border: previewFocused ? "focus" : "muted",
+                  }),
                 );
 
                 for (let r = 0; r < previewRows; r++) {
                   const lineIdx = pStart + r;
                   if (lineIdx < codeLines.length) {
                     const raw = codeLines[lineIdx] ?? "";
-                    const ln = th.fg(previewFocused ? "accent" : "dim", String(lineIdx + 1).padStart(3, " "));
+                    const ln = th.fg(
+                      previewFocused ? "accent" : "dim",
+                      String(lineIdx + 1).padStart(3, " "),
+                    );
                     const bar = th.fg(previewFocused ? "accent" : "borderMuted", "│");
                     const body = th.fg(
                       "text",
@@ -402,32 +476,33 @@ export default function (pi: ExtensionAPI) {
                     );
                     const row = " " + ln + " " + bar + " " + body;
                     out.push(
-                      boxRow(
-                        th,
-                        row,
-                        W,
-                        previewFocused
-                          ? { borderColor: "accent" }
-                          : undefined,
-                      ),
+                      boxRow(th, row, W, {
+                        surface: "preview",
+                        border: previewFocused ? "focus" : "muted",
+                      }),
                     );
                   } else {
                     out.push(
-                      boxRow(
-                        th,
-                        "",
-                        W,
-                        previewFocused ? { borderColor: "accent" } : undefined,
-                      ),
+                      boxRow(th, "", W, {
+                        surface: "preview",
+                        border: previewFocused ? "focus" : "muted",
+                      }),
                     );
                   }
                 }
               } else {
-                out.push(boxRow(th, " " + th.fg("muted", "no selection"), W));
-                for (let i = 0; i < previewRows; i++) out.push(boxRow(th, "", W));
+                out.push(
+                  boxRow(th, " " + th.fg("muted", "no selection"), W, {
+                    surface: "preview",
+                    border: "muted",
+                  }),
+                );
+                for (let i = 0; i < previewRows; i++) {
+                  out.push(boxRow(th, "", W, { surface: "preview", border: "muted" }));
+                }
               }
 
-              out.push(boxRule(th, W));
+              out.push(boxRule(th, W, { surface: "chrome", border: "muted" }));
 
               const focusHint =
                 focus === "list"
@@ -446,9 +521,10 @@ export default function (pi: ExtensionAPI) {
                   keyHint(th, "tab", "last/all"),
                   keyHint(th, "esc", "close"),
                 ].join(th.fg("dim", "  ·  "));
-              out.push(boxRow(th, hints, W));
-              out.push(boxBottom(th, W));
+              out.push(boxRow(th, hints, W, { surface: "chrome", border: "frame" }));
+              out.push(boxBottom(th, W, { surface: "chrome", border: "frame" }));
               return out;
+
             },
 
             handleInput(data: string): void {
@@ -664,14 +740,29 @@ function createEmptyState(theme: ThemeLike, done: () => void) {
       const titlePlain = " ✦ Code Blocks ";
       const titleColored = theme.fg("accent", theme.bold(" ✦ Code Blocks "));
       return [
-        boxTop(theme, titleColored, titlePlain, W),
-        boxRow(theme, "", W),
-        boxRow(theme, centerVisible(theme.fg("text", theme.bold("No code blocks found")), innerW), W),
-        boxRow(theme, centerVisible(theme.fg("muted", "in this session yet"), innerW), W),
-        boxRow(theme, "", W),
-        boxRow(theme, centerVisible(theme.fg("dim", "Tip: ask for code in ``` fences"), innerW), W),
-        boxRow(theme, "", W),
-        boxRule(theme, W),
+        boxTop(theme, titleColored, titlePlain, W, { surface: "chrome", border: "frame" }),
+        boxRow(theme, "", W, { surface: "body" }),
+        boxRow(
+          theme,
+          centerVisible(theme.fg("text", theme.bold("No code blocks found")), innerW),
+          W,
+          { surface: "body" },
+        ),
+        boxRow(
+          theme,
+          centerVisible(theme.fg("muted", "in this session yet"), innerW),
+          W,
+          { surface: "body" },
+        ),
+        boxRow(theme, "", W, { surface: "body" }),
+        boxRow(
+          theme,
+          centerVisible(theme.fg("dim", "Tip: ask for code in ``` fences"), innerW),
+          W,
+          { surface: "body" },
+        ),
+        boxRow(theme, "", W, { surface: "body" }),
+        boxRule(theme, W, { surface: "chrome", border: "muted" }),
         boxRow(
           theme,
           centerVisible(
@@ -681,9 +772,11 @@ function createEmptyState(theme: ThemeLike, done: () => void) {
             innerW,
           ),
           W,
+          { surface: "chrome", border: "frame" },
         ),
-        boxBottom(theme, W),
+        boxBottom(theme, W, { surface: "chrome", border: "frame" }),
       ];
+
     },
     handleInput(data: string): void {
       if (
