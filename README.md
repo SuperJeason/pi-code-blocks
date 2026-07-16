@@ -56,8 +56,9 @@ pi -e git:github.com/SuperJeason/pi-code-blocks
 
 ### Layout
 
-- 弹层宽度约 68%
-- 列表/预览行数按终端高度自适应，预览区更大
+- 弹层贴在输入框上方（`bottom-center`），不垂直居中
+- 面板背景透明，与 pi 原生选择器一致；仅选中行使用 `selectedBg`
+- 宽度约 68%，列表/预览行数随终端高度自适应
 
 ## Requirements
 
