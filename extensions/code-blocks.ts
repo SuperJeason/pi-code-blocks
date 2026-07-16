@@ -9,30 +9,27 @@ import {
 } from "@earendil-works/pi-tui";
 
 /**
- * /code - bottom-anchored overlay with frosted (toolPendingBg) panel.
+ * /code - bottom-anchored frosted panel; height-safe frame; T-junction rules.
  * Trigger: /code
  * Keys: up/down move/scroll · right/f preview · left list · tab last/all · enter · esc
  */
 
 // Layout sizes: adaptive by terminal height, preview gets more space.
-// Not percentage of overlay width — row counts computed from process.stdout.rows.
+// MUST stay within overlay maxHeight ("75%") or the TUI slices the bottom border.
 function layoutRows(): { list: number; preview: number } {
   const termRows = Math.max(20, process.stdout.rows || 36);
   // chrome rows outside list/preview:
   // top + search + rule + scroll + rule + previewHeader + rule + footer + bottom = 9
   const chrome = 9;
-  // leave a little room so overlay does not fill entire terminal
-  const usable = Math.max(14, Math.min(termRows - 6, termRows - 4));
-  const content = Math.max(10, usable - chrome);
-  // Prefer a larger preview pane (~65% of content rows)
-  let list = Math.max(4, Math.min(8, Math.round(content * 0.35)));
-  let preview = Math.max(8, content - list);
-  // hard caps for very tall terminals
-  if (preview > 24) preview = 24;
-  if (list > 10) list = 10;
-  // ensure total content fits preference
+  // Match overlayOptions.maxHeight ("75%") with 1 row margin for compositor safety.
+  const maxTotal = Math.max(14, Math.floor(termRows * 0.75) - 1);
+  const content = Math.max(6, maxTotal - chrome);
+  // Prefer a larger preview pane (~60% of content rows)
+  let list = Math.max(3, Math.min(8, Math.round(content * 0.35)));
+  let preview = Math.max(4, content - list);
   if (list + preview > content) {
-    preview = Math.max(8, content - list);
+    list = Math.max(3, Math.min(list, content - 4));
+    preview = Math.max(4, content - list);
   }
   return { list, preview };
 }
@@ -93,9 +90,14 @@ function keyHint(theme: ThemeLike, key: string, label: string): string {
   return theme.fg("accent", theme.bold(key)) + theme.fg("muted", " " + label);
 }
 
-// Frosted panel surface: toolPendingBg sits between pageBg and selectedBg,
-// approximating a soft "glass" panel in the terminal (true blur is unavailable).
-const PANEL_BG = "toolPendingBg";
+// Soft frosted panel. Terminals cannot do real alpha/blur — customMessageBg sits
+// just above pageBg so the surface reads as light semi-opaque glass.
+const PANEL_BG = "customMessageBg";
+
+/** Full-width paint so the TUI compositor never pads with unstyled spaces. */
+function paintLine(theme: ThemeLike, content: string, width: number, bg: string = PANEL_BG): string {
+  return theme.bg(bg, padVisible(content, width));
+}
 
 function boxRow(
   theme: ThemeLike,
@@ -108,30 +110,37 @@ function boxRow(
   const innerW = Math.max(0, width - 2);
   const left = theme.fg(borderColor, "│");
   const right = theme.fg(borderColor, "│");
-  return theme.bg(bg, left + padVisible(inner, innerW) + right);
+  return paintLine(theme, left + padVisible(inner, innerW) + right, width, bg);
 }
 
 function boxTop(theme: ThemeLike, titleColored: string, titlePlain: string, width: number): string {
   const innerW = Math.max(0, width - 2);
-  const titleW = visibleWidth(titlePlain);
+  // Keep title within the frame so ╭ / ╮ always meet the side borders.
+  let title = titleColored;
+  let titleW = visibleWidth(titlePlain);
+  if (titleW > innerW) {
+    title = truncateToWidth(titlePlain, innerW, "…");
+    titleW = visibleWidth(title);
+  }
   const dash = Math.max(0, innerW - titleW);
   const line =
     theme.fg("borderAccent", "╭") +
-    titleColored +
+    title +
     theme.fg("borderAccent", "─".repeat(dash) + "╮");
-  return theme.bg(PANEL_BG, padVisible(line, width));
+  return paintLine(theme, line, width);
 }
 
 function boxBottom(theme: ThemeLike, width: number): string {
   const innerW = Math.max(0, width - 2);
   const line = theme.fg("borderAccent", "╰" + "─".repeat(innerW) + "╯");
-  return theme.bg(PANEL_BG, padVisible(line, width));
+  return paintLine(theme, line, width);
 }
 
+/** Horizontal rule with T-junctions into the vertical borders (├ ─ ┤). */
 function boxRule(theme: ThemeLike, width: number): string {
   const innerW = Math.max(0, width - 2);
-  const mid = theme.fg("borderMuted", "─".repeat(innerW));
-  return boxRow(theme, mid, width, { borderColor: "borderMuted" });
+  const line = theme.fg("borderAccent", "├" + "─".repeat(innerW) + "┤");
+  return paintLine(theme, line, width);
 }
 
 interface CodeBlock {

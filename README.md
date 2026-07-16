@@ -57,8 +57,10 @@ pi -e git:github.com/SuperJeason/pi-code-blocks
 ### Layout
 
 - 弹层贴在输入框上方（`bottom-center`），不垂直居中
-- 面板使用半透明感的 frosted 底（主题 `toolPendingBg`）；选中行用 `selectedBg`
-- 终端无法真·高斯模糊，此为最接近的主题色毛玻璃效果
+- 面板使用半透明感 frosted 底（主题 `customMessageBg`，比页面略亮）
+- 选中行用 `selectedBg`；分隔线用 `├─┤` 与左右边框正确衔接
+- 高度限制在终端 75% 内，避免底边框被裁切
+- 终端无法真·高斯模糊/alpha，此为最接近的半透明毛玻璃效果
 - 宽度约 68%，列表/预览行数随终端高度自适应
 
 ## Requirements
