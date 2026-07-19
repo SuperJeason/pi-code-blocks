@@ -227,8 +227,8 @@ export default function (pi: ExtensionAPI) {
               width: 52,
               minWidth: 44,
               maxHeight: "60%",
-              anchor: "bottom-center",
-              margin: { bottom: 1 },
+              anchor: "center",
+              margin: { top: 1, bottom: 1 },
             },
           },
         );
@@ -726,8 +726,8 @@ export default function (pi: ExtensionAPI) {
             width: "68%",
             minWidth: 60,
             maxHeight: "75%",
-            anchor: "bottom-center",
-            margin: { bottom: 1 },
+            anchor: "center",
+            margin: { top: 1, bottom: 1 },
           },
         },
       );
